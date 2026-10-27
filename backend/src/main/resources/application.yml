@@ -1,0 +1,20 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: report-backend
+  datasource:
+    url: jdbc:postgresql://103.163.118.212:31147/tester
+    driver-class-name: org.postgresql.Driver
+    username: appuser
+    password: 25ce064873467c132f44646b104515eb
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+logging:
+  level:
+    root: INFO
+    com.atdigital: DEBUG
