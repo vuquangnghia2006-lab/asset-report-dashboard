@@ -71,3 +71,30 @@ Các endpoint nhận query param lọc: `orgId`, `city`, `ward`, `voltageLevel`,
 - **Asset Overview** — tổng quan tài sản, công suất theo cấp điện áp, cơ cấu theo tổ chức
 - **Transformer Fleet** — đội hình máy biến áp, sàng lọc vận hành song song
 - **Asset Data Quality** — độ đầy đủ dữ liệu, cân bằng pha
+
+## Chạy bằng Docker (2 image: backend + frontend)
+
+Yêu cầu: Docker Desktop đang chạy.
+
+```bash
+docker compose -f docker-compose.report.yml up -d --build
+```
+
+Hoặc trên Windows chỉ cần **bấm đúp**:
+
+- `run-docker.bat` — build + chạy + mở trình duyệt
+- `stop-docker.bat` — dừng
+
+Sau khi chạy:
+
+| Thành phần | URL |
+|---|---|
+| Web (nginx) | http://localhost:8081/asset-overview |
+| API (Spring Boot) | http://localhost:8091/api/report |
+
+Image được build:
+- `asset-report-backend:latest` — Maven build → JRE 17 Alpine
+- `asset-report-frontend:latest` — Node build → nginx Alpine (proxy `/api` sang backend)
+
+> Đổi cổng: sửa `ports` trong `docker-compose.report.yml`.
+> Cấu hình DB: sửa biến `SPRING_DATASOURCE_*` trong `docker-compose.report.yml` (nên dùng file `.env`).

@@ -1,0 +1,28 @@
+name: asset-report
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: asset-report-backend:latest
+    container_name: asset-report-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://103.163.118.212:31147/tester
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: 25ce064873467c132f44646b104515eb
+    ports:
+      - "8091:8090"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: asset-report-frontend:latest
+    container_name: asset-report-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+    restart: unless-stopped
