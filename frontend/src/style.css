@@ -136,17 +136,8 @@ a.btn {
 
 .shell {
   display: grid;
-  grid-template-columns: 230px 1fr;
+  grid-template-columns: auto 1fr;
   min-height: calc(100vh - 58px);
-}
-
-.sidebar {
-  background: #fff;
-  border-right: 1px solid var(--line);
-  padding: 14px 10px;
-  position: sticky;
-  top: 58px;
-  height: calc(100vh - 58px);
 }
 
 .nav-label {
@@ -658,10 +649,6 @@ th {
 }
 
 @media (max-width: 1200px) {
-  .shell {
-    grid-template-columns: 190px 1fr;
-  }
-
   .filterbar {
     grid-template-columns: repeat(3, 1fr);
   }
