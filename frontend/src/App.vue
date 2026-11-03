@@ -108,9 +108,9 @@ onBeforeUnmount(() => {
 <template>
   <header class="topbar">
     <div class="brand">
-      <div class="logo">AM</div>
+      <div class="logo">AT</div>
       <div>
-        <div class="brand-title">Asset & Mining Management</div>
+        <div class="brand-title">ATDigital Report</div>
         <div class="brand-sub">Electric power assets & mining operations</div>
       </div>
     </div>
