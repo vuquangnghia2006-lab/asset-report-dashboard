@@ -58,13 +58,14 @@ public final class Dtos {
     ) {
     }
 
-    public record PairResult(long id, String nameA, String nameB, String siteA, String siteB, String ratio,
-                             String vectorGroup, String tapInfo, Double ukDiff, String result, String detail,
+    public record PairResult(long id, String nameA, String nameB, String bayA, String bayB, String siteA, String siteB,
+                             String ratio, String vectorGroup, String tapInfo, Double ukDiff, String result, String detail,
                              Boolean ratioOk, Boolean vectorOk, Boolean tapOk, Boolean ukOk) {
     }
 
     public record ParallelPairsReport(long totalPairs, long compatible, long review, long notCompatible,
-                                      double maxUkDiff, boolean sameSite, List<PairResult> pairs) {
+                                       double maxUkDiff, boolean sameSite, List<Option> ratios, List<Option> vectorGroups,
+                                       List<Option> tapConfigurations, List<Option> ukValues, List<PairResult> pairs) {
     }
 
     public record QualityCards(double overallCompletenessPct, long assetsWithMissingFields, long missingNameplates,

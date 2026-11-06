@@ -4,9 +4,9 @@
   --line: #dfe6ec;
   --text: #1f2937;
   --muted: #6b7280;
-  --blue: #168aad;
-  --blue-dark: #0e7490;
-  --blue-soft: #e8f6fa;
+  --blue: #0e4593;
+  --blue-dark: #073878;
+  --blue-soft: #e7effb;
   --green: #29a36a;
   --amber: #e49b2f;
   --red: #d95763;
@@ -32,9 +32,9 @@ input {
 }
 
 .topbar {
-  height: 58px;
-  background: #fff;
-  border-bottom: 1px solid var(--line);
+  height: 48px;
+  background: var(--blue-dark);
+  border-bottom: 1px solid #052b5d;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -47,29 +47,18 @@ input {
 .brand {
   display: flex;
   align-items: center;
-  gap: 11px;
-}
-
-.logo {
-  width: 33px;
-  height: 33px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #168aad, #42b8cc);
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 800;
+  gap: 6px;
 }
 
 .brand-title {
   font-size: 18px;
-  font-weight: 750;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
 }
 
-.brand-sub {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 2px;
+.brand-title span {
+  color: #ef3340;
 }
 
 .top-actions {
@@ -136,8 +125,8 @@ a.btn {
 
 .shell {
   display: grid;
-  grid-template-columns: auto 1fr;
-  min-height: calc(100vh - 58px);
+  grid-template-columns: 56px minmax(0, 1fr);
+  min-height: calc(100vh - 48px);
 }
 
 .nav-label {

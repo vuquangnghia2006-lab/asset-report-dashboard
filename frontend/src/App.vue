@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import AppIcon from './components/AppIcon.vue'
 import { exportStore } from './exportStore'
@@ -7,43 +7,12 @@ import { exportStore } from './exportStore'
 const route = useRoute()
 const mainEl = ref(null)
 const menuOpen = ref(false)
-const treeOpen = ref(true)
-const searchOpen = ref(false)
-const query = ref('')
-const searchEl = ref(null)
 
 const railItems = [
-  { path: '/asset-overview', label: 'Tổng quan tài sản', icon: 'grid' },
-  { path: '/transformer-fleet', label: 'Đội hình máy biến áp', icon: 'bolt' },
-  { path: '/data-quality', label: 'Chất lượng dữ liệu', icon: 'list' },
+  { path: '/asset-overview', label: 'Asset Overview', icon: 'grid' },
+  { path: '/transformer-fleet', label: 'Transformer Fleet', icon: 'bolt' },
+  { path: '/data-quality', label: 'Data Quality', icon: 'list' },
 ]
-
-const treeGroups = [
-  {
-    id: 'power',
-    label: 'Điện lực',
-    items: [
-      { path: '/asset-overview', label: 'Tổng quan tài sản', meta: 'Assets' },
-      { path: '/transformer-fleet', label: 'Đội hình máy biến áp', meta: 'Fleet' },
-      { path: '/data-quality', label: 'Chất lượng dữ liệu', meta: 'Quality' },
-    ],
-  },
-]
-
-const openGroups = ref({ power: true })
-
-const filteredGroups = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return treeGroups
-  return treeGroups
-    .map((g) => ({
-      ...g,
-      items: g.items.filter(
-        (i) => i.label.toLowerCase().includes(q) || i.meta.toLowerCase().includes(q),
-      ),
-    }))
-    .filter((g) => g.items.length)
-})
 
 const isActive = (p) => route.path.startsWith(p)
 
@@ -51,34 +20,8 @@ function toggleMenu() {
   menuOpen.value = !menuOpen.value
 }
 
-function toggleGroup(id) {
-  openGroups.value[id] = !openGroups.value[id]
-}
-
-function toggleTree() {
-  treeOpen.value = !treeOpen.value
-}
-
-async function toggleSearch() {
-  searchOpen.value = !searchOpen.value
-  if (searchOpen.value) {
-    treeOpen.value = true
-    await nextTick()
-    searchEl.value?.focus()
-  } else {
-    query.value = ''
-  }
-}
-
 function onDocClick() {
   menuOpen.value = false
-}
-
-function onKeydown(e) {
-  if (e.key === 'Escape' && searchOpen.value) {
-    searchOpen.value = false
-    query.value = ''
-  }
 }
 
 async function handleExport(fmt) {
@@ -97,22 +40,16 @@ async function handleExport(fmt) {
 
 onMounted(() => {
   document.addEventListener('click', onDocClick)
-  document.addEventListener('keydown', onKeydown)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
-  document.removeEventListener('keydown', onKeydown)
 })
 </script>
 
 <template>
   <header class="topbar">
     <div class="brand">
-      <div class="logo">AT</div>
-      <div>
-        <div class="brand-title">ATDigital Report</div>
-        <div class="brand-sub">Electric power assets & mining operations</div>
-      </div>
+      <img class="brand-logo" src="/atdigital-logo.png" alt="ATDigital" />
     </div>
     <div class="top-actions">
       <div class="export-menu">
@@ -126,121 +63,20 @@ onBeforeUnmount(() => {
     </div>
   </header>
 
-  <div class="shell" :class="{ 'tree-collapsed': !treeOpen }">
-    <div class="workspace">
-      <!-- Thanh công cụ màu xanh -->
-      <nav class="icon-rail" aria-label="Thanh công cụ">
-        <router-link
-          v-for="item in railItems"
-          :key="item.path"
-          :to="item.path"
-          class="rail-btn"
-          :class="{ active: isActive(item.path) }"
-          :title="item.label"
-          :aria-label="item.label"
-        >
-          <AppIcon :name="item.icon" />
-        </router-link>
-
-        <div class="rail-sep" role="separator"></div>
-
-        <button
-          class="rail-btn"
-          :class="{ active: treeOpen }"
-          title="Ẩn/hiện cây thư mục"
-          aria-label="Ẩn/hiện cây thư mục"
-          :aria-pressed="treeOpen"
-          @click="toggleTree"
-        >
-          <AppIcon name="panel" />
-        </button>
-        <button
-          class="rail-btn"
-          :class="{ active: searchOpen }"
-          title="Tìm trong danh mục"
-          aria-label="Tìm trong danh mục"
-          :aria-pressed="searchOpen"
-          @click="toggleSearch"
-        >
-          <AppIcon name="search" />
-        </button>
-      </nav>
-
-      <!-- Cây thư mục thiết bị -->
-      <aside v-show="treeOpen" class="tree-panel">
-        <div class="tree-head">
-          <span>Cây thư mục</span>
-          <button
-            class="tree-collapse"
-            title="Thu gọn"
-            aria-label="Thu gọn cây thư mục"
-            @click="toggleTree"
-          >
-            <AppIcon name="chevron" />
-          </button>
-        </div>
-
-        <div v-if="searchOpen" class="tree-search">
-          <AppIcon name="search" :size="14" />
-          <input
-            ref="searchEl"
-            v-model="query"
-            type="text"
-            placeholder="Tìm trang..."
-            aria-label="Tìm trang trong danh mục"
-          />
-          <button
-            v-if="query"
-            class="tree-search-clear"
-            title="Xoá"
-            aria-label="Xoá tìm kiếm"
-            @click="query = ''"
-          >
-            ×
-          </button>
-        </div>
-
-        <div class="tree-scroll">
-          <ul class="tree">
-            <li v-for="group in filteredGroups" :key="group.id">
-              <button
-                class="tree-group"
-                :aria-expanded="openGroups[group.id]"
-                @click="toggleGroup(group.id)"
-              >
-                <AppIcon
-                  name="chevron"
-                  :size="13"
-                  class="tree-chevron"
-                  :class="{ open: openGroups[group.id] }"
-                />
-                <AppIcon name="folder" :size="15" />
-                <span class="tree-group-label">{{ group.label }}</span>
-                <span class="tree-count">{{ group.items.length }}</span>
-              </button>
-
-              <ul v-show="openGroups[group.id]" class="tree-children">
-                <li v-for="item in group.items" :key="item.path">
-                  <router-link
-                    :to="item.path"
-                    class="tree-item"
-                    :class="{ active: isActive(item.path) }"
-                  >
-                    <AppIcon name="doc" :size="14" />
-                    <span class="tree-item-label">{{ item.label }}</span>
-                    <span class="tree-item-meta">{{ item.meta }}</span>
-                  </router-link>
-                </li>
-              </ul>
-            </li>
-          </ul>
-
-          <p v-if="!filteredGroups.length" class="tree-empty">
-            Không tìm thấy trang phù hợp.
-          </p>
-        </div>
-      </aside>
-    </div>
+  <div class="shell">
+    <nav class="icon-rail" aria-label="Primary navigation">
+      <router-link
+        v-for="item in railItems"
+        :key="item.path"
+        :to="item.path"
+        class="rail-btn"
+        :class="{ active: isActive(item.path) }"
+        :title="item.label"
+        :aria-label="item.label"
+      >
+        <AppIcon :name="item.icon" />
+      </router-link>
+    </nav>
 
     <main ref="mainEl" class="main">
       <router-view />
@@ -262,6 +98,9 @@ onBeforeUnmount(() => {
 
 /* ---------- Icon rail ---------- */
 .icon-rail {
+  position: sticky;
+  top: 48px;
+  height: calc(100vh - 48px);
   width: 56px;
   flex: 0 0 56px;
   display: flex;
@@ -271,6 +110,13 @@ onBeforeUnmount(() => {
   padding: 10px 0;
   background: linear-gradient(180deg, var(--blue-dark), var(--blue));
   overflow: hidden;
+}
+
+.brand-logo {
+  display: block;
+  width: 280px;
+  height: 39px;
+  object-fit: contain;
 }
 
 .rail-btn {

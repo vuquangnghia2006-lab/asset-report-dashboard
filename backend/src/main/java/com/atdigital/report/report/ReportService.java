@@ -133,42 +133,43 @@ public class ReportService {
     // Filters
     // ---------------------------------------------------------------------
 
-    public Dtos.FilterOptions filterOptions() {
-        FilterContext none = new FilterContext(null, null, null, null, null, null, null);
-        Hierarchy h = hierarchy(none);
+    public Dtos.FilterOptions filterOptions(FilterContext f, boolean transformersOnly) {
+        Hierarchy h = hierarchy(f);
+        String where = h.where() + (transformersOnly
+                ? " AND EXISTS (SELECT 1 FROM transformer t WHERE t.asset_info_id = ai.id)" : "");
 
         List<Dtos.Option> organisations = jdbc.query(
                 "SELECT o.id, COALESCE(NULLIF(o.short_name, ''), o.name) AS label, count(*) AS c " +
-                        "FROM asset_info ai " + h.joins() + " " + h.where() + " AND o.id IS NOT NULL " +
+                        "FROM asset_info ai " + h.joins() + " " + where + " AND o.id IS NOT NULL " +
                         "GROUP BY o.id, o.short_name, o.name ORDER BY c DESC",
                 h.params(), (rs, i) -> new Dtos.Option(String.valueOf(rs.getLong("id")),
                         rs.getString("label"), rs.getLong("c")));
 
         List<Dtos.Option> cities = jdbc.query(
-                "SELECT ad.city AS label, count(*) AS c FROM asset_info ai " + h.joins() + " " + h.where() +
+                "SELECT ad.city AS label, count(*) AS c FROM asset_info ai " + h.joins() + " " + where +
                         " AND ad.city IS NOT NULL AND ad.city <> '' GROUP BY ad.city ORDER BY c DESC",
                 h.params(), (rs, i) -> new Dtos.Option(rs.getString("label"), rs.getString("label"), rs.getLong("c")));
 
         List<Dtos.Option> wards = jdbc.query(
-                "SELECT ad.ward_commune AS label, count(*) AS c FROM asset_info ai " + h.joins() + " " + h.where() +
+                "SELECT ad.ward_commune AS label, count(*) AS c FROM asset_info ai " + h.joins() + " " + where +
                         " AND ad.ward_commune IS NOT NULL AND ad.ward_commune <> '' GROUP BY ad.ward_commune ORDER BY c DESC",
                 h.params(), (rs, i) -> new Dtos.Option(rs.getString("label"), rs.getString("label"), rs.getLong("c")));
 
         List<Dtos.Option> voltageLevels = jdbc.query(
-                "SELECT vl.name AS label, count(*) AS c FROM asset_info ai " + h.joins() + " " + h.where() +
+                "SELECT vl.name AS label, count(*) AS c FROM asset_info ai " + h.joins() + " " + where +
                         " AND vl.name IS NOT NULL AND vl.name <> '' GROUP BY vl.name ORDER BY c DESC",
                 h.params(), (rs, i) -> new Dtos.Option(rs.getString("label"),
                         rs.getString("label"), rs.getLong("c")));
 
         List<Dtos.Option> manufacturers = jdbc.query(
                 "SELECT m.id, m.name AS label, count(*) AS c FROM asset_info ai " +
-                        "JOIN manufacturer m ON m.id = ai.manufacturer_id " + h.joins() + " " + h.where() +
+                        "JOIN manufacturer m ON m.id = ai.manufacturer_id " + h.joins() + " " + where +
                         " AND m.name IS NOT NULL GROUP BY m.id, m.name ORDER BY c DESC",
                 h.params(), (rs, i) -> new Dtos.Option(String.valueOf(rs.getLong("id")),
                         rs.getString("label"), rs.getLong("c")));
 
         List<Dtos.Option> statuses = new ArrayList<>();
-        jdbc.query("SELECT ai.status AS st, count(*) AS c FROM asset_info ai " + h.joins() + " " + h.where() +
+        jdbc.query("SELECT ai.status AS st, count(*) AS c FROM asset_info ai " + h.joins() + " " + where +
                         " GROUP BY ai.status ORDER BY c DESC",
                 h.params(), (org.springframework.jdbc.core.RowCallbackHandler) rs ->
                         statuses.add(new Dtos.Option(String.valueOf(rs.getObject("st") == null ? -1 : rs.getLong("st")),
@@ -176,7 +177,7 @@ public class ReportService {
 
         List<Dtos.Option> assetClasses = new ArrayList<>();
         for (Map.Entry<String, String> e : CLASS_TABLE.entrySet()) {
-            assetClasses.add(new Dtos.Option(e.getKey(), e.getKey(), countClass(e.getValue(), none)));
+            assetClasses.add(new Dtos.Option(e.getKey(), e.getKey(), countClass(e.getValue(), f)));
         }
 
         return new Dtos.FilterOptions(organisations, cities, wards, voltageLevels, manufacturers, statuses, assetClasses);
@@ -333,19 +334,21 @@ public class ReportService {
     // Dashboard 2 - parallel operation screening
     // ---------------------------------------------------------------------
 
-    private record TransformerData(long id, String name, Long substId, String substName, String vectorGroup,
-                                   Set<Double> voltages, Set<Double> ukValues, List<String> tapTypes,
+    private record TransformerData(long id, String serialNumber, String aliasName, String bayName, Long substId,
+                                   String substName, String vectorGroup, Map<String, Double> voltages,
+                                   Set<Double> ukValues, List<String> tapTypes,
                                    Set<Double> tapVoltages) {
     }
 
     public Dtos.ParallelPairsReport parallelPairs(FilterContext f, double maxUkDiff, boolean sameSite,
-                                                  boolean requireTapOverlap, double maxPowerRatio) {
+                                                   boolean requireTapOverlap, double maxPowerRatio, String ratio,
+                                                   String vectorGroup, String tapConfiguration, Double ukValue) {
         Hierarchy h = hierarchy(f);
         Map<Long, TransformerData> byId = new LinkedHashMap<>();
 
         jdbc.query(
-                "SELECT t.id, COALESCE(NULLIF(ai.asset_name, ''), 'Transformer-' || t.id) AS name, " +
-                        "s.id AS subst_id, s.name AS subst_name, t.vector_group " +
+                "SELECT t.id, ai.serial_no, ai.asset_name, b.name AS bay_name, s.id AS subst_id, s.name AS subst_name, " +
+                        "t.vector_group " +
                         "FROM transformer t JOIN asset_info ai ON ai.id = t.asset_info_id " + h.joins() + " " + h.where() +
                         " AND (t.vector_group IS NOT NULL " +
                         " OR EXISTS (SELECT 1 FROM voltage_rating vr WHERE vr.transformer_id = t.id AND vr.voltage_l_l IS NOT NULL) " +
@@ -354,15 +357,21 @@ public class ReportService {
                 h.params(), rs -> {
                     long id = rs.getLong("id");
                     Long substId = rs.getObject("subst_id") == null ? null : rs.getLong("subst_id");
-                    byId.put(id, new TransformerData(id, rs.getString("name"), substId, rs.getString("subst_name"),
-                            rs.getString("vector_group"), new HashSet<>(), new HashSet<>(), new ArrayList<>(),
+                    byId.put(id, new TransformerData(id, rs.getString("serial_no"), rs.getString("asset_name"),
+                            rs.getString("bay_name"), substId, rs.getString("subst_name"), rs.getString("vector_group"),
+                            new HashMap<>(), new HashSet<>(), new ArrayList<>(),
                             new HashSet<>()));
                 });
 
-        jdbc.query("SELECT transformer_id, voltage_l_l FROM voltage_rating WHERE voltage_l_l IS NOT NULL", rs -> {
+        jdbc.query("SELECT transformer_id, winding, voltage_l_l, voltage_l_l_unit FROM voltage_rating " +
+                "WHERE voltage_l_l IS NOT NULL", rs -> {
             TransformerData d = byId.get(rs.getLong("transformer_id"));
             if (d != null) {
-                d.voltages().add(rs.getDouble("voltage_l_l"));
+                String winding = rs.getString("winding");
+                if (winding != null) {
+                    d.voltages().put(winding.toUpperCase(), voltageInKv(rs.getDouble("voltage_l_l"),
+                            rs.getString("voltage_l_l_unit")));
+                }
             }
         });
 
@@ -401,6 +410,12 @@ public class ReportService {
             d.tapTypes().sort(String::compareToIgnoreCase);
         }
 
+        List<Dtos.Option> ratios = options(all, ReportService::ratioText);
+        List<Dtos.Option> vectorGroups = options(all, d -> blankToNull(d.vectorGroup()));
+        List<Dtos.Option> tapConfigurations = options(all, ReportService::tapText);
+        List<Dtos.Option> ukValues = ukOptions(all);
+        all.removeIf(d -> !matchesTechnicalFilters(d, ratio, vectorGroup, tapConfiguration, ukValue));
+
         List<Dtos.PairResult> results = new ArrayList<>();
         long seq = 0;
         for (int i = 0; i < all.size(); i++) {
@@ -413,8 +428,8 @@ public class ReportService {
                 Double rpa = ratedPower.get(a.id());
                 Double rpb = ratedPower.get(b.id());
                 if (maxPowerRatio > 0 && rpa != null && rpb != null) {
-                    double ratio = Math.max(rpa, rpb) / Math.min(rpa, rpb);
-                    if (ratio > maxPowerRatio) {
+                    double powerRatio = Math.max(rpa, rpb) / Math.min(rpa, rpb);
+                    if (powerRatio > maxPowerRatio) {
                         continue;
                     }
                 }
@@ -439,7 +454,75 @@ public class ReportService {
         long notCompatible = results.stream().filter(r -> r.result().equals("Not compatible")).count();
 
         return new Dtos.ParallelPairsReport(results.size(), compatible, review, notCompatible,
-                maxUkDiff, sameSite, limited);
+                maxUkDiff, sameSite, ratios, vectorGroups, tapConfigurations, ukValues, limited);
+    }
+
+    private static double voltageInKv(double value, String unit) {
+        return "V".equalsIgnoreCase(unit) ? value / 1000.0 : value;
+    }
+
+    private static String ratioText(TransformerData d) {
+        List<String> voltages = new ArrayList<>();
+        for (String winding : List.of("PRIM", "SEC", "TERT")) {
+            Double voltage = d.voltages().get(winding);
+            if (voltage != null) {
+                voltages.add(fmt(voltage));
+            }
+        }
+        return voltages.isEmpty() ? null : String.join(" / ", voltages) + " kV";
+    }
+
+    private static String tapText(TransformerData d) {
+        if (d.tapTypes().isEmpty() && d.tapVoltages().isEmpty()) {
+            return null;
+        }
+        String types = String.join(", ", d.tapTypes());
+        return types + (types.isEmpty() ? "" : " ") + d.tapVoltages().size() + " taps";
+    }
+
+    private static String displayName(TransformerData d) {
+        String serial = blankToNull(d.serialNumber());
+        String alias = blankToNull(d.aliasName());
+        if (serial != null && alias != null) {
+            return serial + " (" + alias + ")";
+        }
+        return serial != null ? serial : alias != null ? alias : "Transformer-" + d.id();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private static List<Dtos.Option> options(List<TransformerData> data,
+                                              java.util.function.Function<TransformerData, String> value) {
+        Map<String, Long> counts = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (TransformerData d : data) {
+            String option = value.apply(d);
+            if (option != null) {
+                counts.merge(option, 1L, Long::sum);
+            }
+        }
+        return counts.entrySet().stream().map(e -> new Dtos.Option(e.getKey(), e.getKey(), e.getValue())).toList();
+    }
+
+    private static List<Dtos.Option> ukOptions(List<TransformerData> data) {
+        Map<Double, Long> counts = new java.util.TreeMap<>();
+        for (TransformerData d : data) {
+            for (Double value : d.ukValues()) {
+                counts.merge(value, 1L, Long::sum);
+            }
+        }
+        return counts.entrySet().stream()
+                .map(e -> new Dtos.Option(fmt(e.getKey()), fmt(e.getKey()) + "%", e.getValue()))
+                .toList();
+    }
+
+    private static boolean matchesTechnicalFilters(TransformerData d, String ratio, String vectorGroup,
+                                                   String tapConfiguration, Double ukValue) {
+        return (ratio == null || ratio.isBlank() || ratio.equals(ratioText(d)))
+                && (vectorGroup == null || vectorGroup.isBlank() || vectorGroup.equalsIgnoreCase(d.vectorGroup()))
+                && (tapConfiguration == null || tapConfiguration.isBlank() || tapConfiguration.equals(tapText(d)))
+                && (ukValue == null || d.ukValues().contains(ukValue));
     }
 
     private int rank(String result) {
@@ -455,7 +538,7 @@ public class ReportService {
         StringBuilder detail = new StringBuilder();
 
         boolean ratioKnown = !a.voltages().isEmpty() && !b.voltages().isEmpty();
-        boolean ratioMatch = ratioKnown && new HashSet<>(a.voltages()).equals(b.voltages());
+        boolean ratioMatch = ratioKnown && a.voltages().equals(b.voltages());
         if (ratioKnown) {
             detail.append("Ratio: ").append(ratioMatch ? "OK" : "Mismatch").append("; ");
         } else {
@@ -519,14 +602,14 @@ public class ReportService {
             result = "Not compatible";
         }
 
-        String ratioText = a.voltages().stream().sorted().map(ReportService::fmt)
-                .reduce((x, y) -> x + "/" + y).orElse("N/A") + " kV";
+        String ratioText = Objects.requireNonNullElse(ratioText(a), "N/A");
         String vectorText = vectorKnown ? a.vectorGroup() : "N/A";
-        String tapText = tapKnown ? String.join(",", a.tapTypes()) + " " + a.tapVoltages().size() + " taps" : "N/A";
+        String tapText = Objects.requireNonNullElse(tapText(a), "N/A");
         String siteA = a.substName() == null ? "-" : a.substName();
         String siteB = b.substName() == null ? "-" : b.substName();
 
-        return new Dtos.PairResult(id, a.name(), b.name(), siteA, siteB, ratioText, vectorText, tapText,
+        return new Dtos.PairResult(id, displayName(a), displayName(b), Objects.requireNonNullElse(a.bayName(), "-"),
+                Objects.requireNonNullElse(b.bayName(), "-"), siteA, siteB, ratioText, vectorText, tapText,
                 ukDiff, result, detail.toString().trim(),
                 ratioKnown ? ratioMatch : null,
                 vectorKnown ? vectorMatch : null,

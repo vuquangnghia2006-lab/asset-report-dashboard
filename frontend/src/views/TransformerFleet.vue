@@ -31,9 +31,13 @@ function goHome() {
 
 const parCfg = reactive({
   maxUkDiff: 10,
-  sameSite: true,
-  requireTapOverlap: true,
-  maxPowerRatio: 0,
+})
+
+const technicalFilters = reactive({
+  ratio: '',
+  vectorGroup: '',
+  tapConfiguration: '',
+  ukValue: '',
 })
 
 async function fetchFleet() {
@@ -60,6 +64,10 @@ async function fetchPairs() {
         voltageLevel: store.filters.voltageLevel || undefined,
         manufacturerId: store.filters.manufacturerId || undefined,
         status: store.filters.status || undefined,
+        ratio: technicalFilters.ratio || undefined,
+        vectorGroup: technicalFilters.vectorGroup || undefined,
+        tapConfiguration: technicalFilters.tapConfiguration || undefined,
+        ukValue: technicalFilters.ukValue || undefined,
       },
       parCfg,
     )
@@ -70,39 +78,13 @@ async function fetchPairs() {
   }
 }
 
-watch(() => store.filters, () => {
+watch([() => store.filters, parCfg, technicalFilters], () => {
   fetchFleet()
   fetchPairs()
-})
+}, { deep: true })
 onMounted(() => {
   fetchFleet()
   fetchPairs()
-})
-
-const activeCriterion = ref('')
-const criteria = computed(() => {
-  const all = pairs.value?.pairs || []
-  return [
-    { key: 'ratio', label: 'Transformation ratio', desc: 'Exact match or deviation within configured tolerance.',
-      count: all.filter((p) => p.ratioOk === false).length },
-    { key: 'vector', label: 'Vector group', desc: 'Must be compatible in phase displacement.',
-      count: all.filter((p) => p.vectorOk === false).length },
-    { key: 'uk', label: 'Impedance Uk%', desc: 'Relative deviation compared against technical threshold.',
-      count: all.filter((p) => p.ukOk === false).length },
-    { key: 'tap', label: 'Tap & rated power', desc: 'Checks tap range and rated power ratio where data is available.',
-      count: all.filter((p) => p.tapOk === false).length },
-  ]
-})
-
-const visiblePairs = computed(() => {
-  const all = pairs.value?.pairs || []
-  if (!activeCriterion.value) return all
-  return all.filter((p) => {
-    const field = activeCriterion.value === 'ratio' ? 'ratioOk'
-      : activeCriterion.value === 'vector' ? 'vectorOk'
-      : activeCriterion.value === 'uk' ? 'ukOk' : 'tapOk'
-    return p[field] === false
-  })
 })
 
 const gridBase = {
@@ -288,8 +270,8 @@ function buildPayload() {
       },
       {
         name: 'Parallel pairs - detail',
-        headers: ['Transformer A', 'Transformer B', 'Site A', 'Site B', 'Ratio', 'Vector group', 'Tap info', 'Uk% diff', 'Result'],
-        rows: pairs.value.pairs.map((p) => [p.nameA, p.nameB, p.siteA, p.siteB, p.ratio, p.vectorGroup || '', p.tapInfo || '', p.ukDiff, p.result]),
+        headers: ['Transformer A', 'Transformer B', 'Bay A', 'Bay B', 'Site A', 'Site B', 'Ratio', 'Vector Group', 'Tap Configuration', 'Uk% diff', 'Result'],
+        rows: pairs.value.pairs.map((p) => [p.nameA, p.nameB, p.bayA, p.bayB, p.siteA, p.siteB, p.ratio, p.vectorGroup || '', p.tapInfo || '', p.ukDiff, p.result]),
       },
     )
   }
@@ -317,7 +299,7 @@ registerExporter('fleet', async (fmt, el) => {
       </div>
     </div>
 
-    <FilterBar :fields="['orgId', 'city', 'ward', 'voltageLevel', 'manufacturerId', 'status']" />
+    <FilterBar transformers-only :fields="['orgId', 'voltageLevel', 'manufacturerId', 'status']" />
 
     <div v-if="loading" class="tf-card tf-state">Loading…</div>
     <div v-else-if="error" class="tf-card tf-state tf-error">Error: {{ error }}</div>
@@ -384,39 +366,42 @@ registerExporter('fleet', async (fmt, el) => {
       <div class="tf-compat-head">
         <div>
           <div class="tf-card-title"><span class="tf-bullet" style="background:#f59e0b"></span>Parallel operation compatibility</div>
-          <div class="tf-sub" style="margin-top:4px">Technical screening of transformer pairs</div>
         </div>
-        <button class="tf-btn" @click="fetchPairs">Recalculate</button>
-      </div>
-
-      <div class="tf-criteria">
-        <button
-          v-for="c in criteria"
-          :key="c.key"
-          class="tf-criterion"
-          :class="{ active: activeCriterion === c.key }"
-          @click="activeCriterion = activeCriterion === c.key ? '' : c.key"
-        >
-          <strong>{{ c.label }}</strong>
-          <span v-if="c.count > 0" class="tf-count-bad">{{ fmt(c.count) }} failing</span>
-          <span v-else class="tf-count-ok">No issues</span>
-          <p>{{ c.desc }}</p>
-        </button>
       </div>
 
       <div class="tf-controls">
         <div>
+          <label class="tf-label">Ratio</label>
+          <select v-model="technicalFilters.ratio" class="tf-input">
+            <option value="">All</option>
+            <option v-for="option in pairs?.ratios || []" :key="option.value" :value="option.value">{{ option.label }} ({{ option.count }})</option>
+          </select>
+        </div>
+        <div>
+          <label class="tf-label">Vector Group</label>
+          <select v-model="technicalFilters.vectorGroup" class="tf-input">
+            <option value="">All</option>
+            <option v-for="option in pairs?.vectorGroups || []" :key="option.value" :value="option.value">{{ option.label }} ({{ option.count }})</option>
+          </select>
+        </div>
+        <div>
+          <label class="tf-label">Tap Configuration</label>
+          <select v-model="technicalFilters.tapConfiguration" class="tf-input">
+            <option value="">All</option>
+            <option v-for="option in pairs?.tapConfigurations || []" :key="option.value" :value="option.value">{{ option.label }} ({{ option.count }})</option>
+          </select>
+        </div>
+        <div>
+          <label class="tf-label">Uk%</label>
+          <select v-model="technicalFilters.ukValue" class="tf-input">
+            <option value="">All</option>
+            <option v-for="option in pairs?.ukValues || []" :key="option.value" :value="option.value">{{ option.label }} ({{ option.count }})</option>
+          </select>
+        </div>
+        <div>
           <label class="tf-label">Maximum Uk% difference</label>
           <input v-model.number="parCfg.maxUkDiff" type="number" min="0" max="100" class="tf-input" />
         </div>
-        <div class="tf-checks">
-          <label><input v-model="parCfg.sameSite" type="checkbox" /> Same site only</label>
-          <label><input v-model="parCfg.requireTapOverlap" type="checkbox" /> Require tap overlap</label>
-          <label>Max power ratio
-            <input v-model.number="parCfg.maxPowerRatio" type="number" min="0" step="0.1" class="tf-input tf-input-sm" />
-          </label>
-        </div>
-        <button class="tf-btn" @click="fetchPairs">Recalculate</button>
       </div>
 
       <div v-if="loadingPairs" class="tf-state-box">Loading pairs…</div>
@@ -428,20 +413,16 @@ registerExporter('fleet', async (fmt, el) => {
           <div class="tf-pair"><span class="tf-pair-label">Review</span><strong class="tf-warn">{{ fmt(pairs.review) }}</strong></div>
           <div class="tf-pair"><span class="tf-pair-label">Not compatible</span><strong class="tf-bad">{{ fmt(pairs.notCompatible) }}</strong></div>
         </div>
-        <div v-if="activeCriterion" class="tf-filter-note">
-          Filtered to {{ fmt(visiblePairs.length) }} pair(s) failing
-          <strong>{{ criteria.find((c) => c.key === activeCriterion)?.label }}</strong>
-          — <button class="tf-link" @click="activeCriterion = ''">clear</button>
-        </div>
         <div class="tf-scroll">
           <table class="tf-table">
             <thead>
-              <tr><th>Transformer A</th><th>Transformer B</th><th>Site</th><th>Ratio</th><th>Vector group</th><th>Tap info</th><th>Uk% diff</th><th>Result</th></tr>
+              <tr><th>Transformer A</th><th>Transformer B</th><th>Bay</th><th>Site</th><th>Ratio</th><th>Vector Group</th><th>Tap Configuration</th><th>Uk% diff</th><th>Result</th></tr>
             </thead>
             <tbody>
-              <tr v-for="p in visiblePairs" :key="p.id">
+              <tr v-for="p in pairs.pairs" :key="p.id">
                 <td class="tf-name">{{ p.nameA }}</td>
                 <td class="tf-name">{{ p.nameB }}</td>
+                <td>{{ p.bayA }}<template v-if="p.bayB && p.bayB !== p.bayA"> / {{ p.bayB }}</template></td>
                 <td>{{ p.siteA }}<template v-if="p.siteB && p.siteB !== p.siteA"> / {{ p.siteB }}</template></td>
                 <td>{{ p.ratio }}</td>
                 <td>{{ p.vectorGroup || '-' }}</td>
@@ -449,8 +430,8 @@ registerExporter('fleet', async (fmt, el) => {
                 <td class="tf-num">{{ p.ukDiff }}</td>
                 <td><span class="tf-pill" :class="pillTone(p.result)">{{ p.result }}</span></td>
               </tr>
-              <tr v-if="!visiblePairs.length">
-                <td colspan="8" style="text-align:center;color:#94a3b8">No pairs in scope.</td>
+              <tr v-if="!pairs.pairs.length">
+                <td colspan="9" style="text-align:center;color:#94a3b8">No pairs in scope.</td>
               </tr>
             </tbody>
           </table>
@@ -746,7 +727,7 @@ registerExporter('fleet', async (fmt, el) => {
 
 .tf-controls {
   display: grid;
-  grid-template-columns: 190px 1fr auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 15px;
   align-items: end;
   background: #f8fafc;

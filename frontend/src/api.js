@@ -18,8 +18,8 @@ async function get(path, params) {
   return res.json()
 }
 
-export function filters() {
-  return get('/filters')
+export function filters(params) {
+  return get('/filters', params)
 }
 
 export function assetOverview(params) {

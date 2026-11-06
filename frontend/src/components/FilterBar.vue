@@ -3,10 +3,9 @@ import { reactive, onMounted } from 'vue'
 import { store, loadOptions } from '../store'
 
 const props = defineProps({
-  fields: { type: Array, default: () => ['orgId', 'city', 'ward', 'voltageLevel', 'manufacturerId', 'assetClass', 'status'] },
+  fields: { type: Array, default: () => ['orgId', 'voltageLevel', 'manufacturerId', 'assetClass', 'status'] },
+  transformersOnly: { type: Boolean, default: false },
 })
-
-const emit = defineEmits(['apply'])
 
 const FIELDS = {
   orgId: { label: 'Organisation', key: 'organisations' },
@@ -20,24 +19,29 @@ const FIELDS = {
 
 const editable = reactive({ ...store.filters })
 
-function syncFromStore() {
-  for (const k in editable) editable[k] = store.filters[k]
-}
-
-function apply() {
+async function update(key) {
   store.filters = { ...store.filters, ...editable }
-  emit('apply', { ...store.filters })
+  await loadOptions(store.filters, props.transformersOnly)
+  let cleared = false
+  for (const field of props.fields) {
+    const value = editable[field]
+    if (value && !options(FIELDS[field].key).some((option) => option.value === value)) {
+      editable[field] = ''
+      store.filters = { ...store.filters, [field]: '' }
+      cleared = true
+    }
+  }
+  if (cleared) await loadOptions(store.filters, props.transformersOnly)
 }
 
-function reset() {
+async function reset() {
   for (const k in editable) editable[k] = ''
   store.filters = { ...store.filters, ...editable }
-  emit('apply', { ...store.filters })
+  await loadOptions(store.filters, props.transformersOnly)
 }
 
 onMounted(async () => {
-  await loadOptions()
-  syncFromStore()
+  await loadOptions(store.filters, props.transformersOnly)
 })
 
 const options = (key) => (store.options ? store.options[key] : [])
@@ -47,7 +51,7 @@ const options = (key) => (store.options ? store.options[key] : [])
   <div class="filterbar">
     <div v-for="k in props.fields" :key="k">
       <label>{{ FIELDS[k].label }}</label>
-      <select v-model="editable[k]">
+      <select v-model="editable[k]" @change="update(k)">
         <option value="">All</option>
         <option v-for="o in options(FIELDS[k].key)" :key="o.value" :value="o.value">
           {{ o.label }} ({{ o.count }})
@@ -55,7 +59,6 @@ const options = (key) => (store.options ? store.options[key] : [])
       </select>
     </div>
     <div class="filter-actions">
-      <button class="btn" @click="apply">Apply</button>
       <button class="btn secondary" @click="reset">Reset</button>
     </div>
   </div>

@@ -22,8 +22,16 @@ public class ReportController {
     }
 
     @GetMapping("/filters")
-    public Dtos.FilterOptions filters() {
-        return service.filterOptions();
+    public Dtos.FilterOptions filters(
+            @RequestParam(required = false) Long orgId,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String ward,
+            @RequestParam(required = false) String voltageLevel,
+            @RequestParam(required = false) Long manufacturerId,
+            @RequestParam(required = false) String assetClass,
+            @RequestParam(required = false) Integer status,
+            @RequestParam(defaultValue = "false") boolean transformersOnly) {
+        return service.filterOptions(ctx(orgId, city, ward, voltageLevel, manufacturerId, assetClass, status), transformersOnly);
     }
 
     @GetMapping("/asset-overview")
@@ -60,9 +68,13 @@ public class ReportController {
             @RequestParam(defaultValue = "10") double maxUkDiff,
             @RequestParam(defaultValue = "true") boolean sameSite,
             @RequestParam(defaultValue = "true") boolean requireTapOverlap,
-            @RequestParam(defaultValue = "0") double maxPowerRatio) {
+            @RequestParam(defaultValue = "0") double maxPowerRatio,
+            @RequestParam(required = false) String ratio,
+            @RequestParam(required = false) String vectorGroup,
+            @RequestParam(required = false) String tapConfiguration,
+            @RequestParam(required = false) Double ukValue) {
         return service.parallelPairs(ctx(orgId, city, ward, voltageLevel, manufacturerId, null, status),
-                maxUkDiff, sameSite, requireTapOverlap, maxPowerRatio);
+                maxUkDiff, sameSite, requireTapOverlap, maxPowerRatio, ratio, vectorGroup, tapConfiguration, ukValue);
     }
 
     @GetMapping("/data-quality")

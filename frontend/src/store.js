@@ -14,10 +14,10 @@ export const store = reactive({
   },
 })
 
-export async function loadOptions() {
-  if (!store.options) {
-    store.options = await fetchFilters()
-  }
+export async function loadOptions(filters = store.filters, transformersOnly = false) {
+  const params = toParams(filters)
+  if (transformersOnly) params.set('transformersOnly', 'true')
+  store.options = await fetchFilters(params)
 }
 
 export function toParams(f) {
